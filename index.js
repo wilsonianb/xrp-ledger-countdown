@@ -8,8 +8,6 @@ slack.setWebhook(process.env['WEBHOOK_URI']);
 
 const RIPPLED_RPC = process.env['ALTNET'] ? 'https://s.altnet.rippletest.net:51234' : 'https://s1.ripple.com:51234'
 
-const VL_SITE = process.env['ALTNET'] ? 'vl.altnet.rippletest.net' : 'vl.ripple.com'
-
 const RIPPLE_EPOCH = 946684800
 const TWO_WEEKS = 1209600
 
@@ -78,29 +76,34 @@ function reportAmendmentTimes() {
   })
 }
 
-function getValidatorList() {
+function getValidatorList(valListUri) {
   return request.get({
-    url: 'https://' + VL_SITE,
+    url: 'https://' + valListUri,
     json: true
   }).then(data => {
     return Promise.resolve(data)
   })
 }
 
-function reportValListExpiration () {
-  return getValidatorList().then(data => {
+function reportValListExpiration (valListUri) {
+  return getValidatorList(valListUri).then(data => {
     const now = Date.now()
     const valList = JSON.parse(new Buffer(data.blob, 'base64').toString('ascii'))
     const time = countdown(now, parseRippleTime(valList.expiration)).toString()
-    messageSlack('Current validator list at `' + VL_SITE + '` will expire in *' + time + '*')
+    messageSlack('Current validator list at `' + valListUri + '` will expire in *' + time + '*')
   })
 }
 
 const countdownCron = new CronJob({
   cronTime: '00 00 9 * * *',
   onTick: function() {
+    if (process.env['ALTNET']) {
+      reportValListExpiration('vl.altnet.rippletest.net')
+    } else {
+      reportValListExpiration('vl.coil.com')
+      reportValListExpiration('vl.ripple.com')
+    }
     reportAmendmentTimes()
-    reportValListExpiration()
   },
   start: true,
   timeZone: 'America/Los_Angeles'
